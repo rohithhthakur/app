@@ -47,7 +47,7 @@ spec:
       }
     }
  stage('Deploy to stage'){
-       when { not { branch 'master' }
+       when { not { branch 'master' }}
         environment {
         PATH = "/busybox:/kaniko:$PATH"
       }
@@ -57,4 +57,4 @@ spec:
           sh 'Hello  world'
       }}}
   }
-}}
+}
