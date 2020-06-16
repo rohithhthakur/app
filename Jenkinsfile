@@ -46,5 +46,10 @@ spec:
         }
       }
     }
+ stage('Deploy to stage'){
+       when { not { branch 'master' }
+       steps {
+          sh 'Hello  world'
+      }}}
   }
 }
