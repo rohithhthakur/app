@@ -54,7 +54,7 @@ spec:
          
        steps {
             container(name: 'kaniko', shell: '/busybox/sh') {
-          sh 'Hello  world'
+          sh 'echo Hello  world'
       }}}
   }
 }
