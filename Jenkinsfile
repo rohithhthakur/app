@@ -48,8 +48,13 @@ spec:
     }
  stage('Deploy to stage'){
        when { not { branch 'master' }
+        environment {
+        PATH = "/busybox:/kaniko:$PATH"
+      }
+         
        steps {
+            container(name: 'kaniko', shell: '/busybox/sh') {
           sh 'Hello  world'
       }}}
   }
-}
+}}
