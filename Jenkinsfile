@@ -46,5 +46,16 @@ spec:
         }
       }
     }
+    stage('Building image for dev environment') {
+     when { branch 'feature' }
+steps {
+          container(name: 'kaniko', shell: '/busybox/sh') {
+          sh '''#!/busybox/sh
+            echo "Building docker image for my app..."
+            /kaniko/executor --context `pwd` --verbosity debug --destination rohith4756/myapp:v2
+          '''
+        }
+      }
+    }
   }
 }
