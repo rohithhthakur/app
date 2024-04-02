@@ -1,1 +1,94 @@
-App Version: v1
+import boto3
+import logging
+import os
+from datetime import datetime, timedelta
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# Environment Variables
+topic = os.environ['SNS_TOPIC_ARN']
+model_instance_type = os.environ['MODEL_INSTANCE_TYPE']
+staging_asg_name = os.environ['STAGING_ASG_NAME']
+notebook_asg_name = os.environ['NOTEBOOK_ASG_NAME']
+model_asg_name = os.environ['MODEL_ASG_NAME']
+model_threshold = int(os.environ['MODEL_THRESHOLD'])
+emr_threshold = int(os.environ['EMR_THRESHOLD'])
+staging_notebook_threshold = int(os.environ['STAGING_NOTEBOOK_THRESHOLD'])
+
+# AWS Resources
+os.environ['REGION'] = 'us-east-1'
+ec2 = boto3.resource('ec2')
+ecs = boto3.client('ecs')  # Added ECS client
+autoscaling = boto3.client('autoscaling')
+sns = boto3.client('sns')
+
+# Filters
+asv_filters = [{'Name': 'tag:ASV', 'Values': ['ASVCOAFCRMVIRTUOSO']}]
+emr_filters = [{'Name': 'tag:ApplicationName', 'Values': ['VIRTUOSO-EMR']}]
+
+asv_tag_instances = ec2.instances.filter(Filters=asv_filters)
+emr_instances = ec2.instances.filter(Filters=emr_filters)
+
+# Auto Scaling Groups Information
+staging_asg = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[staging_asg_name])
+model_asg = autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[model_asg_name])
+
+staging_min_size = staging_asg['AutoScalingGroups'][0]['MinSize']
+model_min_size = model_asg['AutoScalingGroups'][0]['MinSize']
+
+# Instance Information Tracking
+instance_info = ""
+asv_exceeding_threshold = 0
+emr_exceeding_threshold = 0
+
+def terminate_ecs_task(cluster, task_arn):
+    response = ecs.stop_task(
+        cluster=cluster,
+        task=task_arn,
+        reason='Exceeded runtime threshold'
+    )
+    logger.info(f"Task {task_arn} has been terminated: {response}")
+
+def check_ecs_tasks(instance_id, runtime_threshold):
+    # Assuming you have the cluster name(s). This may need dynamic fetching based on your setup.
+    clusters = ['your-cluster-name']  # Replace with your actual ECS cluster names as needed
+    
+    for cluster in clusters:
+        # List all running tasks in the cluster
+        tasks = ecs.list_tasks(cluster=cluster, desiredStatus='RUNNING')['taskArns']
+        if not tasks:
+            continue  # Skip if no tasks
+        
+        # Describe tasks to find their start time
+        described_tasks = ecs.describe_tasks(cluster=cluster, tasks=tasks)
+        for task in described_tasks['tasks']:
+            # Check task start time
+            task_start_time = task['startedAt']
+            if (datetime.now(task_start_time.tzinfo) - task_start_time) > runtime_threshold:
+                terminate_ecs_task(cluster, task['taskArn'])
+
+# ASV and EMR Instances Check updated with ECS tasks check
+for instance in asv_tag_instances:
+    instance_type = instance.instance_type
+    instance_id = instance.id
+    launch_time = instance.launch_time
+    now = datetime.now(launch_time.tzinfo)
+    runtime = now - launch_time
+
+    if runtime > timedelta(hours=model_threshold):  # Using model_threshold as an example
+        message = f"Instance {instance_id} has been running for more than {model_threshold} hours."
+        send_email(sns, message)
+        check_ecs_tasks(instance_id, timedelta(hours=model_threshold))
+
+# Add similar logic for EMR instances
+
+def send_email(sns_client, message):
+    sns_client.publish(
+        TopicArn=topic,
+        Subject='Instance runtime exceeded desired threshold',
+        Message=message
+    )
+    logger.info(f"Email sent for {message}")
+
+# Ensure the ECS task termination logic is correctly aligned with your application requirements.
