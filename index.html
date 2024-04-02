@@ -1,1 +1,88 @@
-xx
+from typing import List
+import pandas as pd
+
+class InputObj:
+    def __init__(self, name=None, value=None, dataset_id=None):
+        self.value = value  # Placeholder for DataFrame or path to the data
+        self.name = name
+        self.dataset_id = dataset_id
+
+class OutputObj:
+    def __init__(self, result, rule_name, message="", mismatches=None):
+        self.result = result
+        self.rule_name = rule_name
+        self.message = message
+        self.mismatches = mismatches  # Assuming mismatches hold DataFrame of validation failures
+
+class SchemaEngine:
+    def __init__(self, client_id, client_secret):
+        self.client_id = client_id
+        self.client_secret = client_secret
+
+    def validate(self, inputs: List[InputObj]) -> List[OutputObj]:
+        outputs = []
+        name_dataset_map = {}  # Group datasets by name
+
+        for input_obj in inputs:
+            name = input_obj.name
+            if name not in name_dataset_map:
+                name_dataset_map[name] = []
+            name_dataset_map[name].append(input_obj)
+
+        for name, datasets in name_dataset_map.items():
+            group_pass = False  # Track if any dataset in the group passes all validations
+
+            for dataset in datasets:
+                data = dataset.value
+                dataset_id = dataset.dataset_id
+                if data is None or dataset_id is None:
+                    continue  # Skip datasets with missing data or ID
+
+                schema_errors = self.validate_schema(self.get_schema(dataset_id), data)
+                rule_results = self.validate_rules(self.get_rules(dataset_id), data, name)
+                
+                # Corrected condition based on OutputObj's actual structure
+                if not schema_errors and all(result.result for result in rule_results):
+                    group_pass = True
+                    break  # A dataset in the group passed all validations
+
+            if group_pass:
+                outputs.append(OutputObj(True, f"{name} Validation", "Validation passed."))
+            else:
+                failure_messages = "; ".join([res.message for res in rule_results if not res.result])
+                outputs.append(OutputObj(False, f"{name} Validation", failure_messages))
+
+        return outputs
+
+    def get_schema(self, dataset_id):
+        # Placeholder for schema retrieval
+        return []
+
+    def validate_schema(self, schema: list, data: pd.DataFrame) -> list:
+        # Placeholder for actual schema validation logic
+        return []
+
+    def get_rules(self, dataset_id):
+        # Placeholder for rule retrieval
+        return []
+
+    def validate_rules(self, rules, data: pd.DataFrame, name: str) -> List[OutputObj]:
+        results = []
+        data.columns = [x.lower() for x in data.columns]
+
+        for rule in rules:
+            df_of_errors = rule['val_func'](data)  # Assuming val_func checks and returns a DataFrame of errors
+            rule_name = f"{name} - {rule['rule_name']}"
+            if not df_of_errors.empty:
+                message = f"Data did not pass {rule['rule_name']}."
+                results.append(OutputObj(False, rule_name, message, df_of_errors))
+            else:
+                results.append(OutputObj(True, rule_name, "Pass."))
+        return results
+
+def schema_driver(inputs):
+    se = SchemaEngine("ClientID", "ClientSecret")
+    results = se.validate(inputs)
+    for result in results:
+        print(f"Validation type: {result.rule_name}, Result: {'Passed' if result.result else 'Failed'}, Message: {result.message}")
+    return results
