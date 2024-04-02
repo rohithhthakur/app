@@ -1,1 +1,25 @@
-xx
+import pandas as pd
+
+# Assuming you have AWS credentials configured (via environment variables, AWS config file, or IAM roles)
+s3_path_1 = 's3://your-bucket/path/to/your-first-file.csv'
+s3_path_2 = 's3://your-bucket/path/to/your-second-file.csv'
+
+# Read the CSV files from S3
+df1 = pd.read_csv(s3_path_1)
+df2 = pd.read_csv(s3_path_2)
+
+# Compare the two DataFrames to find differences. This example checks for rows that are different
+# Method 1: Simple comparison for exact match (not considering the order of rows)
+differences = df1.compare(df2)
+
+# Method 2: Find rows that are present in one DataFrame and not in the other, considering them as sets
+differences_in_df1 = pd.concat([df1, df2, df2]).drop_duplicates(keep=False)
+differences_in_df2 = pd.concat([df2, df1, df1]).drop_duplicates(keep=False)
+
+# Print the differences
+print("Differences between the two files (DataFrame 1 compared to DataFrame 2):")
+print(differences)
+print("\nRows in DataFrame 1 not in DataFrame 2:")
+print(differences_in_df1)
+print("\nRows in DataFrame 2 not in DataFrame 1:")
+print(differences_in_df2)
