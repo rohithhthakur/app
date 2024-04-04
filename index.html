@@ -1,1 +1,69 @@
-xx
+class OutputObj:
+    def __init__(self, result, rule_name, message=""):
+        self.result = result
+        self.rule_name = rule_name
+        self.message = message
+
+class InputObj:
+    def __init__(self, name, value, dataset_id):
+        self.name = name
+        self.value = value
+        self.dataset_id = dataset_id
+
+class YourClass:
+    # Placeholder for actual implementations of the following methods
+    def get_schema(self, dataset_id):
+        pass
+
+    def validate_schema(self, schema, data):
+        return []
+
+    def get_rules(self, dataset_id):
+        pass
+
+    def validate_rules(self, rules, data, name):
+        return []
+
+    def validate(self, inputs: List[InputObj]) -> List[OutputObj]:
+        outputs = []
+        name_dataset_map = {}  # Group datasets by name
+
+        for input_obj in inputs:
+            name_dataset_map.setdefault(input_obj.name, []).append(input_obj)
+
+        for name, dataset_group in name_dataset_map.items():
+            group_schema_failures = []
+            group_rules_failures = []
+            success_found = False
+
+            for dataset in dataset_group:
+                if dataset.value is None or dataset.dataset_id is None:
+                    continue  # Skip datasets with missing data or ID
+
+                schema = self.get_schema(dataset.dataset_id)
+                schema_validation_results = self.validate_schema(schema, dataset.value)
+
+                if schema_validation_results:
+                    # Collect schema validation failures
+                    group_schema_failures.append(OutputObj(False, f"{name} Schema Validation", ' '.join(schema_validation_results)))
+                else:
+                    # Schema validation passed, proceed to rules validation
+                    rules = self.get_rules(dataset.dataset_id)
+                    rules_validation_results = self.validate_rules(rules, dataset.value, name)
+                    if not all(result.result for result in rules_validation_results):
+                        # Collect rules validation failures
+                        failure_messages = '; '.join([f"{result.rule_name}: {result.message}" for result in rules_validation_results if not result.result])
+                        group_rules_failures.append(OutputObj(False, f"{name} Rules Validation", failure_messages))
+                    else:
+                        # Successful validation found, no need to collect further errors for this group
+                        success_found = True
+                        break
+
+            if success_found:
+                outputs.append(OutputObj(True, name, "All validations passed."))
+            else:
+                # Append failures only if no success was found in the group
+                outputs.extend(group_schema_failures)
+                outputs.extend(group_rules_failures)
+
+        return outputs
