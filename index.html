@@ -1,1 +1,53 @@
-xx
+from typing import List
+
+class Validator:
+    def get_schema(self, dataset_id):
+        # Dummy implementation
+        return {}
+
+    def validate_schema(self, schema, data):
+        # Dummy implementation
+        return []
+
+    def get_rules(self, dataset_id):
+        # Dummy implementation
+        return []
+
+    def validate_rules(self, rules, data, name):
+        # Dummy implementation
+        return []
+
+    def validate(self, inputs: List[InputObj]) -> List[OutputObj]:
+        outputs = []
+        name_dataset_map = {}  # Group datasets by name
+        
+        # Group inputs by name
+        for input_obj in inputs:
+            name_dataset_map.setdefault(input_obj.name, []).append(input_obj)
+        
+        # Process each group
+        for name, dataset_group in name_dataset_map.items():
+            for dataset in dataset_group:
+                if dataset.value is None or dataset.dataset_id is None:
+                    continue  # Skip datasets with missing data or ID
+                
+                # Perform schema validation
+                schema = self.get_schema(dataset.dataset_id)
+                schema_validation_results = self.validate_schema(schema, dataset.value)
+                if schema_validation_results:
+                    message = ' '.join(schema_validation_results)
+                    outputs.append(OutputObj(False, f"{name} Schema Validation", message))
+                    continue  # Move to the next dataset if schema validation fails
+
+                # If code reaches here, schema validation passed
+                rules = self.get_rules(dataset.dataset_id)
+                rules_validation_results = self.validate_rules(rules, dataset.value, name)
+                
+                # Collect rules validation results
+                if all(result.result for result in rules_validation_results):
+                    outputs.extend(rules_validation_results)  # Add successful validations
+                else:
+                    # If any rule validation failed, add those results
+                    outputs.extend([res for res in rules_validation_results if not res.result])
+
+        return outputs
