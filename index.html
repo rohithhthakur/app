@@ -1,1 +1,49 @@
-xx
+def validate(self, inputs: List[InputObj]) -> List[OutputObj]:
+    outputs = []
+    name_dataset_map = {}  # Group datasets by name for processing
+    
+    # Group inputs by their name
+    for input_obj in inputs:
+        name_dataset_map.setdefault(input_obj.name, []).append(input_obj)
+    
+    for name, dataset_group in name_dataset_map.items():
+        group_schema_failures = []
+        group_rules_failures = []
+        group_rules_success = []
+
+        for dataset in dataset_group:
+            if dataset.value is None or dataset.dataset_id is None:
+                continue  # Skip datasets with missing data or ID
+            
+            # Perform schema validation
+            schema = self.get_schema(dataset.dataset_id)
+            schema_validation_results = self.validate_schema(schema, dataset.value)
+            
+            # Collect schema validation results
+            if schema_validation_results:
+                schema_message = ' '.join(schema_validation_results)
+                group_schema_failures.append(OutputObj(False, f"{name} Schema Validation", schema_message))
+            else:
+                # Proceed with rules validation if schema validation passed
+                rules = self.get_rules(dataset.dataset_id)
+                rules_validation_results = self.validate_rules(rules, dataset.value, name)
+                
+                # Collect rules validation results
+                for result in rules_validation_results:
+                    if not result.result:
+                        group_rules_failures.append(result)
+                    else:
+                        group_rules_success.append(result)
+
+        # Append schema validation failures if any
+        if group_schema_failures:
+            outputs.extend(group_schema_failures)
+        
+        # Append rules validation successes and failures
+        if group_rules_success:
+            outputs.extend(group_rules_success)
+        elif not group_rules_success and not group_schema_failures:
+            # Only append rules failures if there were no schema failures and no rules successes
+            outputs.extend(group_rules_failures)
+
+    return outputs
