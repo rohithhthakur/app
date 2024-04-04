@@ -1,1 +1,64 @@
-lxx
+To adapt your original validation logic, which sequentially performs schema validation followed by rule validation for single dataset IDs, to accommodate the updated use case of handling multiple dataset IDs per name, we need to adjust the approach slightly. The goal is to ensure that for a group of datasets sharing the same name, if any one of the datasets passes both schema and rule validations, the group is considered valid. Otherwise, we'll aggregate errors accordingly.
+
+Here’s an updated version of the `validate` function that incorporates this logic:
+
+```python
+def validate(self, inputs: List[InputObj]) -> List[OutputObj]:
+    outputs = []
+    name_dataset_map = {}  # Group datasets by name
+
+    for input_obj in inputs:
+        name = input_obj.name
+        name_dataset_map.setdefault(name, []).append(input_obj)
+
+    for name, datasets in name_dataset_map.items():
+        group_errors = []
+        group_passed = False
+
+        for dataset in datasets:
+            data = dataset.value
+            dataset_id = dataset.dataset_id
+
+            if data is None or dataset_id is None:
+                continue  # Skip datasets with missing data or ID
+
+            # Perform schema validation
+            schema = self.get_schema(dataset_id)
+            schema_validation_results = self.validate_schema(schema, data)
+
+            if schema_validation_results:
+                # If schema validation fails, accumulate errors but continue to the next dataset
+                group_errors.append(f"{name} Schema Validation: {' '.join(schema_validation_results)}")
+                continue
+
+            # Perform rules validation only if schema validation succeeds
+            rules = self.get_rules(dataset_id)
+            rules_validation_results = self.validate_rules(rules, data, name)
+
+            # Check if rules validation passed for this dataset
+            if all(result.result for result in rules_validation_results):
+                group_passed = True
+                break  # A dataset in the group passes all checks, no need to check further
+            else:
+                # Accumulate rules validation errors
+                for result in rules_validation_results:
+                    if not result.result:
+                        group_errors.append(f"{result.rule_name}: {result.message}")
+
+        # If no dataset in the group passed, report collected errors
+        if not group_passed:
+            for error in group_errors:
+                outputs.append(OutputObj(False, error))
+
+    return outputs
+```
+
+### Key Changes and Logic
+
+- **Group Datasets by Name:** Datasets are first grouped by their name, allowing multiple dataset IDs to be associated with each group.
+- **Schema Validation First:** For each dataset, schema validation is performed first. If it fails, the errors are noted, but the loop continues to the next dataset without proceeding to rule validation for the current dataset.
+- **Rule Validation Follows:** Rule validation is only attempted if schema validation succeeds. If any dataset in the group passes both schema and rule validations, the group is considered to have passed.
+- **Error Accumulation:** Errors from both schema and rule validations are accumulated. If all datasets in a group fail validations, the accumulated errors are reported.
+- **Early Termination:** The process is optimized by terminating the validation early for a group if any dataset within it passes both schema and rule validations.
+
+This approach closely mirrors the sequential logic of schema then rules validation from the original single dataset ID case, adapted for the complex scenario where multiple dataset IDs per name are considered together.
