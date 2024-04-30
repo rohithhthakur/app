@@ -1,1 +1,50 @@
-xx
+Great to hear that the updated code snippet provided the exact error information you needed! Here’s a summary of the changes made and why they were effective, which you can share with your team:
+
+### Key Changes Made
+
+1. **Using `subprocess.Popen` with `stdout` and `stderr` Capturing**:
+   - Previously, it might have been that only `stderr` was being captured, or output was not being redirected properly. By explicitly directing both `stdout` and `stderr` to `subprocess.PIPE`, we ensured that all output from the command (both standard output and errors) is captured by the Python script.
+   - This allows you to see everything the script outputs, including errors that might help diagnose issues.
+
+2. **Introduction of `communicate()` Method**:
+   - The `communicate()` method waits for the process to finish and reads the output from `stdout` and `stderr` completely. This method helps to avoid deadlocks that can occur from the pipe filling up.
+   - `communicate()` returns a tuple of `stdout` and `stderr`, allowing you to handle and analyze both separately after the process ends.
+
+3. **Error Handling via Return Code Check**:
+   - Checking `result.returncode` to determine if the command executed successfully (a return code of `0` typically indicates success in Unix-like systems). If the return code is not `0`, the script now prints the error output and raises an exception.
+   - This structured approach to error handling ensures that any failure in the subprocess is not just logged, but also actively reported, making it easier to notice and react to failures.
+
+### Why These Changes Are Effective
+
+- **Complete Output Capture**: By capturing both `stdout` and `stderr`, the script doesn't miss any output that could indicate what went wrong in cases of errors or unexpected behaviors.
+- **Prevention of Deadlocks**: Using `communicate()` instead of reading from `stdout` and `stderr` directly helps prevent the script from hanging due to unhandled output buffer overflows.
+- **Clear Error Signaling**: By raising an exception when an error occurs (non-zero return code), the script makes it clear that an error condition was met, which is crucial for debugging and for
+
+import boto3
+
+def get_s3_object_metadata(bucket_name, object_key):
+    # Initialize a session using your credentials
+    session = boto3.Session(
+        aws_access_key_id='YOUR_ACCESS_KEY',
+        aws_secret_access_key='YOUR_SECRET_KEY',
+        region_name='YOUR_REGION'
+    )
+    
+    # Create an S3 client
+    s3 = session.client('s3')
+    
+    try:
+        # Call head_object to get the metadata of the object
+        response = s3.head_object(Bucket=bucket_name, Key=object_key)
+        return response
+    except s3.exceptions.NoSuchKey:
+        print("Object does not exist.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+# Usage
+bucket_name = 'your-bucket-name'
+object_key = 'your-object-key'
+metadata = get_s3_object_metadata(bucket_name, object_key)
+if metadata:
+    print(metadata)
