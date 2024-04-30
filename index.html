@@ -1,1 +1,14 @@
-xx
+import subprocess
+
+command = "python bb.py args"
+result = subprocess.Popen(command, stderr=subprocess.PIPE, stdout=subprocess.PIPE, shell=True)
+stdout, stderr = result.communicate()  # This waits for completion and captures output
+
+r_code = result.returncode
+if r_code != 0:
+    print("Error Output:")
+    print(stderr.decode())  # Decode from bytes to string if necessary
+    raise Exception("Failed")
+else:
+    print("Success Output:")
+    print(stdout.decode())  # Decode from bytes to string if necessary
