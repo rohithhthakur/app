@@ -1,1 +1,21 @@
-lxx
+import os
+
+def rename_files_and_folders(root_dir):
+    for root, dirs, files in os.walk(root_dir, topdown=False):
+        # Rename all files in the directory
+        for name in files:
+            if '-' in name:
+                new_name = name.replace('-', '_')
+                os.rename(os.path.join(root, name), os.path.join(root, new_name))
+                print(f"Renamed file {name} to {new_name}")
+
+        # Rename all directories in the directory
+        for name in dirs:
+            if '-' in name:
+                new_name = name.replace('-', '_')
+                os.rename(os.path.join(root, name), os.path.join(root, new_name))
+                print(f"Renamed folder {name} to {new_name}")
+
+# Specify the path to the directory
+root_directory = "/path/to/image-management"
+rename_files_and_folders(root_directory)
