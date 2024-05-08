@@ -1,16 +1,1 @@
-#!/bin/bash
-
-# Specify the S3 path to the new config file
-S3_CONFIG_PATH="s3://your-bucket-name/path/to/config.yaml"
-
-# Specify the local path to replace
-LOCAL_CONFIG_PATH="/opt/otelcollector/config.yaml"
-
-# Download the new configuration file from S3
-aws s3 cp $S3_CONFIG_PATH $LOCAL_CONFIG_PATH
-
-if [ $? -eq 0 ]; then
-    echo "Configuration file replaced successfully."
-else
-    echo "Failed to download and replace configuration file."
-fi
+lxx
