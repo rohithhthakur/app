@@ -8,8 +8,11 @@ PASSWORD="your_password"
 # Encode credentials for basic authentication
 BASIC_AUTH=$(echo -n "$USERNAME:$PASSWORD" | base64)
 
-# Fetch all pending jobs
-response=$(curl -s "$TOWER_URL/api/v2/jobs/?status=pending" \
+# Get date three days ago (GNU date format)
+THREE_DAYS_AGO=$(date --date="3 days ago" +"%Y-%m-%dT%H:%M:%S")
+
+# Fetch all successful jobs
+response=$(curl -s "$TOWER_URL/api/v2/jobs/?status=successful" \
    -H "Authorization: Basic $BASIC_AUTH" \
    -H "Accept: application/json")
 
@@ -19,26 +22,26 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Parse job IDs using jq (ensure jq is installed on your system)
-JOB_IDS=$(echo $response | jq '.results[] | select(.status=="pending") | .id')
+# Parse job IDs and their finished times using jq
+jobs=$(echo $response | jq -c '.results[] | select(.finished < "'$THREE_DAYS_AGO'") | {id: .id, finished: .finished}')
 
 # Check if no jobs are found
-if [ -z "$JOB_IDS" ]; then
-    echo "No pending jobs to cancel."
+if [ -z "$jobs" ]; then
+    echo "No successful jobs older than three days to delete."
     exit 0
 fi
 
-# Cancel each pending job
-for JOB_ID in $JOB_IDS; do
-    echo "Cancelling job ID: $JOB_ID"
-    cancel_response=$(curl -s -X POST "$TOWER_URL/api/v2/jobs/$JOB_ID/cancel/" \
+# Delete each successful job older than three days
+echo "$jobs" | jq -r '.id' | while read JOB_ID; do
+    echo "Deleting job ID: $JOB_ID"
+    delete_response=$(curl -s -X DELETE "$TOWER_URL/api/v2/jobs/$JOB_ID/" \
         -H "Authorization: Basic $BASIC_AUTH" \
         -H "Content-Type: application/json")
 
     # Check response for errors
-    if [ $(echo $cancel_response | jq '.error') ]; then
-        echo "Failed to cancel job ID $JOB_ID: $(echo $cancel_response | jq '.error_description')"
+    if echo "$delete_response" | jq '.error' &> /dev/null; then
+        echo "Failed to delete job ID $JOB_ID: $(echo $delete_response | jq -r '.error_description')"
     else
-        echo "Successfully cancelled job ID $JOB_ID"
+        echo "Successfully deleted job ID $JOB_ID"
     fi
 done
