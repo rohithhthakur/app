@@ -1,1 +1,15 @@
-xx
+#!/bin/bash
+
+# Credentials
+USERNAME="your_username"
+PASSWORD="your_password"
+TOWER_INSTANCE="your_ansible_tower_instance"
+
+# Fetch all successful job IDs
+jobs=$(curl -s -u "$USERNAME:$PASSWORD" "https://$TOWER_INSTANCE/api/v2/jobs/?status=successful" | jq '.results[] | .id')
+
+# Iterate over each job ID and delete
+for job_id in $jobs; do
+    echo "Deleting job $job_id..."
+    curl -u "$USERNAME:$PASSWORD" -X DELETE "https://$TOWER_INSTANCE/api/v2/jobs/$job_id/"
+done
