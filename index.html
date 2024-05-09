@@ -1,1 +1,44 @@
-lxx
+#!/bin/bash
+
+# Configuration variables
+TOWER_URL="https://your.ansible.tower.url"
+USERNAME="your_username"
+PASSWORD="your_password"
+
+# Encode credentials for basic authentication
+BASIC_AUTH=$(echo -n "$USERNAME:$PASSWORD" | base64)
+
+# Fetch all pending jobs
+response=$(curl -s "$TOWER_URL/api/v2/jobs/?status=pending" \
+   -H "Authorization: Basic $BASIC_AUTH" \
+   -H "Accept: application/json")
+
+# Check if the curl command was successful
+if [ $? -ne 0 ]; then
+    echo "Failed to fetch jobs from Ansible Tower"
+    exit 1
+fi
+
+# Parse job IDs using jq (ensure jq is installed on your system)
+JOB_IDS=$(echo $response | jq '.results[] | select(.status=="pending") | .id')
+
+# Check if no jobs are found
+if [ -z "$JOB_IDS" ]; then
+    echo "No pending jobs to cancel."
+    exit 0
+fi
+
+# Cancel each pending job
+for JOB_ID in $JOB_IDS; do
+    echo "Cancelling job ID: $JOB_ID"
+    cancel_response=$(curl -s -X POST "$TOWER_URL/api/v2/jobs/$JOB_ID/cancel/" \
+        -H "Authorization: Basic $BASIC_AUTH" \
+        -H "Content-Type: application/json")
+
+    # Check response for errors
+    if [ $(echo $cancel_response | jq '.error') ]; then
+        echo "Failed to cancel job ID $JOB_ID: $(echo $cancel_response | jq '.error_description')"
+    else
+        echo "Successfully cancelled job ID $JOB_ID"
+    fi
+done
