@@ -1,1 +1,53 @@
-xx
+import requests
+import base64
+from datetime import datetime, timedelta
+
+# Configuration variables
+TOWER_URL = "https://your.ansible.tower.url"
+USERNAME = "your_username"
+PASSWORD = "your_password"
+
+# Encode credentials for basic authentication
+auth = base64.b64encode(f"{USERNAME}:{PASSWORD}".encode()).decode()
+
+# Get the date three days ago in ISO 8601 format, compatible with Ansible Tower's filtering
+three_days_ago = (datetime.utcnow() - timedelta(days=3)).isoformat() + "Z"
+
+# Define headers with the encoded credentials
+headers = {
+    "Authorization": f"Basic {auth}",
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+}
+
+# Fetch successful jobs completed before three days ago
+response = requests.get(
+    f"{TOWER_URL}/api/v2/jobs/?status=successful&finished__lt={three_days_ago}",
+    headers=headers,
+)
+
+if response.status_code != 200:
+    print(f"Failed to fetch jobs from Ansible Tower: {response.text}")
+    exit(1)
+
+# Parse job IDs from the response
+jobs = response.json().get("results", [])
+
+if not jobs:
+    print("No successful jobs older than three days to delete.")
+    exit(0)
+
+# Loop through each job and send a delete request
+for job in jobs:
+    job_id = job["id"]
+    delete_response = requests.delete(
+        f"{TOWER_URL}/api/v2/jobs/{job_id}/",
+        headers=headers,
+    )
+
+    if delete_response.status_code != 204:
+        print(
+            f"Failed to delete job ID {job_id}: {delete_response.status_code} - {delete_response.text}"
+        )
+    else:
+        print(f"Successfully deleted job ID {job_id}")
