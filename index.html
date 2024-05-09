@@ -1,1 +1,29 @@
-xx
+#!/bin/bash
+
+# Credentials
+USERNAME="your_username"
+PASSWORD="your_password"
+TOWER_INSTANCE="your_ansible_tower_instance"
+
+# Initial API endpoint
+API_ENDPOINT="https://$TOWER_INSTANCE/api/v2/jobs/?status=successful&page_size=100"
+
+# Loop through each page of the API response
+while [ -n "$API_ENDPOINT" ]
+do
+    echo "Fetching jobs from $API_ENDPOINT..."
+    # Fetch the current page
+    RESPONSE=$(curl -s -u "$USERNAME:$PASSWORD" "$API_ENDPOINT")
+
+    # Extract job IDs
+    jobs=$(echo $RESPONSE | jq '.results[] | .id')
+
+    # Delete each job
+    for job_id in $jobs; do
+        echo "Deleting job $job_id..."
+        curl -s -u "$USERNAME:$PASSWORD" -X DELETE "https://$TOWER_INSTANCE/api/v2/jobs/$job_id/" > /dev/null
+    done
+
+    # Get the next page URL from the 'next' field in the JSON response
+    API_ENDPOINT=$(echo $RESPONSE | jq -r '.next')
+done
