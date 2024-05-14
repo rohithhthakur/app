@@ -1,1 +1,73 @@
-xx
+---
+- name: OIDC Password Auth End-to-End Test
+  hosts: oidc-op
+  connection: local
+  collections:
+    - awx.awx
+    - redhat_cop.controller_configuration
+  vars:
+    script_dir: ''
+    rp_appliance_group: 'att-com'
+    threshold_response_time: 1
+  tasks:
+    - name: Execute OIDC based logins with password authentication
+      tags: ["oidc", "login", "password"]
+      command: >
+        python {{script_dir}}/haloc_oidc.py 
+        --content_fqdn signin.stage.clogin.att.com 
+        --signin_fqdn {{caaid_vhj_virtual_hostname}} 
+        --signin_fqdn_ip {{hostvars[item]['ipv4_1_1_ip_address']}} 
+        --attuid {{e2e_test_attuid}} 
+        --password {{e2e_test_password}} 
+        --op_fqdn {{oidc_op_fqdn}} 
+        --op_ip {{ipv4_1_1_ip_address}} 
+        --content_ip {{content_ip_dc}} 
+        --timeout 15
+      with_items: "{{groups[rp_appliance_group]}}"
+      register: cmd
+      failed_when: false
+      changed_when: false
+
+    - name: Set fact for delayed nodes
+      set_fact:
+        e2e_delayed_nodes: "{{ e2e_delayed_nodes|default([]) + [item.item] }}"
+      loop: "{{ cmd.results }}"
+      when: >
+        item.rc == 0 and
+        item.stdout_lines[-1].split(': ')[-1].split(' ')[0] | float > threshold_response_time
+
+    - name: Set fact for failed nodes
+      set_fact:
+        e2e_failed_nodes: "{{ e2e_failed_nodes|default([]) + [item.item] }}"
+      loop: "{{ cmd.results }}"
+      when: item.rc != 0
+
+- name: Add hosts to groups
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Add failed E2E nodes to group
+      include_role:
+        name: groups
+      vars:
+        controller_groups:
+          - name: "{{ e2e_failed_nodes_group_name }}"
+            new_name: "{{ e2e_failed_nodes_group_name }}"
+            inventory: "{{ tower_inventory_name }}"
+            hosts: "{{ e2e_failed_nodes }}"
+            preserve_existing_hosts: yes
+      when: e2e_failed_nodes is defined and e2e_failed_nodes | length > 0
+      ignore_errors: true
+
+    - name: Add delayed E2E nodes to group
+      include_role:
+        name: groups
+      vars:
+        controller_groups:
+          - name: "{{ e2e_delayed_nodes_group_name }}"
+            new_name: "{{ e2e_delayed_nodes_group_name }}"
+            inventory: "{{ tower_inventory_name }}"
+            hosts: "{{ e2e_delayed_nodes }}"
+            preserve_existing_hosts: yes
+      when: e2e_delayed_nodes is defined and e2e_delayed_nodes | length > 0
+      ignore_errors: true
