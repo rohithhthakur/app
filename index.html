@@ -1,1 +1,25 @@
-xx
+# Assuming the required libraries are already imported
+
+DATABRICKS_ROLE = "arn:aws:iam::377055196759:role/ASVOPERATIONALDATAANALYTICSPLATFORM/CapOne-SPR-PHDP-RISK-CCRM-AUTO-LLF-FULL"
+dbutils.credentials.assumeRole(DATABRICKS_ROLE)
+
+print("Current role:", dbutils.credentials.showCurrentRole())
+
+file_path = 's3://auto-crm-prod/users/allm3_quarterly/base_2024q2/workspace/kkt237/fb_risk/open_loans_fullarm.csv'
+df = spark.read.csv(file_path, header=True)
+
+# Display the DataFrame
+df.display()
+
+# Get the list of column names
+columns = df.columns
+print("Columns in the CSV file:", columns)
+
+# Check if specific columns exist
+required_columns = ["column1", "column2", "column3"]  # replace with your column names
+missing_columns = [col for col in required_columns if col not in columns]
+
+if not missing_columns:
+    print("All required columns are present.")
+else:
+    print("Missing columns:", missing_columns)
