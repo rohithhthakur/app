@@ -1,1 +1,79 @@
-xx
+import groovy.json.JsonSlurper
+
+def DEPLOY_FOLDER_PATH = "DA_Jobs/Prod-Deploy-Jobs/crn-virtuoso/model-deployment-pipelines/"
+
+properties([
+    parameters([
+        string(name: 'ModelName', defaultValue: 'All', description: 'Specific model to build, default All for building all models.'),
+        string(name: 'Version', defaultValue: 'All', description: 'Specific version to build, default All for building all versions.')
+    ])
+])
+
+node('aws-da-agents') {
+    checkout scm
+
+    // Stage to get the list of models based on directories or parameters
+    stage("Get Models") {
+        dir('models') {
+            def files = findFiles()
+            def models = files.findAll { it.directory }.collect { it.name }
+            if (params.ModelName != 'All') {
+                models = models.findAll { it == params.ModelName }
+                if (models.isEmpty()) {
+                    error "Specified model '${params.ModelName}' not found. Please check the model name."
+                }
+            }
+            println("Model folders: " + models.toString())
+        }
+    }
+
+    // Stage to build or deploy models in parallel
+    stage("Build or Deploy Models") {
+        def modelJobs = [:]
+        models.each { model ->
+            modelJobs[model] = {
+                stage("Deploy Model: ${model}") {
+                    def model_config = readJSON(file: "models/${model}/configuration.json")
+                    def versionsToDeploy = model_config.versions
+                    if (params.Version != 'All') {
+                        versionsToDeploy = versionsToDeploy.findAll { it.version == params.Version }
+                        if (versionsToDeploy.isEmpty()) {
+                            error "Specified version '${params.Version}' not found in model '${model}'. Please check the version."
+                        }
+                    }
+                    versionsToDeploy.each { version ->
+                        def branch = "releases%2Frelease-${version.version.replace('/', '%2F')}"
+                        if (model == "allm3_challenger") {
+                            branch = "releases%2Fchallenger%2Frelease-${version.version}"
+                        } else if (version.version.contains("allm4") && model == "allm3-spark") {
+                            branch = "releases%2F" + version.version.replace('/', '%2F')
+                        } else if (model == "ccrm-dagger-utils") {
+                            branch = "master"
+                        }
+                        def job = "${DEPLOY_FOLDER_PATH}${model_config.deploy_pipeline}/${branch}"
+                        try {
+                            build job: job
+                            println("Successfully deployed ${model} version ${version.version}")
+                        } catch(Exception e) {
+                            error("Failed to deploy ${model} version ${version.version}")
+                        }
+                    }
+                }
+            }
+        }
+        parallel modelJobs
+    }
+
+    // Stage to send Slack notifications
+    stage("Slack Notification") {
+        withCredentials([string(credentialsId: 'slack_token', variable: 'token')]) {
+            slackSend(
+                message: "Deployment summary: \n${modelJobs.collect { k, v -> "$k: ${v.result}" }.join('\n')}",
+                channel: 'teamcore',
+                color: (modelJobs.any { it.value.result == 'FAILURE' } ? '#ff9494' : '#36a64f'),
+                teamDomain: 'fstech-nisone',
+                token: token
+            )
+        }
+    }
+}
