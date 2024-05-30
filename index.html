@@ -1,1 +1,79 @@
-xx
+import groovy.json.JsonSlurper
+
+// Define global constants and properties
+def DEPLOY_FOLDER_PATH = "DA_Jobs/Prod-Deploy-Jobs/crn-virtuoso/model-deployment-pipelines/"
+
+properties([
+    parameters([
+        string(name: 'ModelName', defaultValue: 'All', description: 'Enter the model name or leave as All to process all models.'),
+        string(name: 'Version', defaultValue: 'All', description: 'Enter the version or leave as All to process all versions for the selected model.')
+    ])
+])
+
+// Declare models at a global scope to be accessible throughout the pipeline
+def models = []
+
+node('aws-da-agents') {
+    checkout scm
+
+    // Initial setup and model retrieval
+    stage("Setup & Initialization") {
+        dir('models') {
+            def files = findFiles()
+            models = files.findAll { it.directory }.collect { it.name }
+            if (params.ModelName != 'All' && params.ModelName.trim()) {
+                models = models.findAll { it == params.ModelName }
+                if (models.isEmpty()) {
+                    error "Specified model '${params.ModelName}' not found. Please check the model name."
+                }
+            }
+        }
+        println("Models to be processed: " + models.toString())
+    }
+
+    // Parallel deployment of models and their versions
+    stage("Parallel Model Deployment") {
+        def modelJobs = [:]
+        models.each { model ->
+            modelJobs[model] = {
+                def model_config = readJSON(file: "models/${model}/configuration.json")
+                def versionsToDeploy = model_config.versions
+                if (params.Version != 'All' && params.Version.trim()) {
+                    versionsToDeploy = versionsToDeploy.findAll { it.version == params.Version }
+                    if (versionsToDeploy.isEmpty()) {
+                        error "Specified version '${params.Version}' not found in model '${model}'. Please check the version."
+                    }
+                }
+                versionsToDeploy.each { version ->
+                    deployModelVersion(model, version, model_config)
+                }
+            }
+        }
+        parallel modelJobs
+    }
+
+    // Summarization and final notifications
+    stage("Post-Deployment Summary") {
+        // Implement summarization logic or additional notifications here
+        println("All selected models and versions have been processed.")
+    }
+}
+
+// Function to handle the deployment of a specific model version
+def deployModelVersion(String model, Map version, Map model_config) {
+    def branch = "releases%2Frelease-${version.version.replace('/', '%2F')}"
+    if (model == "allm3_challenger") {
+        branch = "releases%2Fchallenger%2Frelease-${version.version}"
+    } else if (version.version.contains("allm4") && model == "allm3_spark") {
+        branch = "releases%2F" + version.version.replace('/', '%2F')
+    } else if (model == "ccrm-dagger-utils") {
+        branch = "master"
+    }
+    def job = "${DEPLOY_FOLDER_PATH}${model_config.deploy_pipeline}/${branch}"
+    try {
+        build job: job
+        println("Successfully deployed ${model} version ${version.version}")
+    } catch(Exception e) {
+        error("Failed to deploy ${model} version ${version.version}")
+    }
+}
