@@ -1,1 +1,63 @@
-xx
+Sure, let's go through a concrete example to illustrate how the deployment stages and version stages are mapped and executed in parallel using the Jenkins Groovy script. We'll use two hypothetical models, "model_a" and "model_b", each with two versions.
+
+### Example Setup:
+- **Models Directory Contains**:
+  - `model_a` with versions `1.0` and `1.1`
+  - `model_b` with versions `2.0` and `2.1`
+- **Parameter Settings**:
+  - `ModelName = "All"`
+  - `Version = "All"`
+
+### Step-by-Step Mapping and Execution:
+
+#### 1. **Initialization of Stages Map**:
+   - `def deployStages = [:]`
+   - This creates an empty map to store the deployment stages for each model.
+
+#### 2. **Iterate Over Each Model**:
+   - Models found: `model_a` and `model_b`.
+
+#### 3. **Create Deployment Stages for Each Model**:
+   - **For `model_a`**:
+     - `deployStages["Deploy model_a"] = { ... }`
+   - **For `model_b`**:
+     - `deployStages["Deploy model_b"] = { ... }`
+
+#### 4. **Define Deployment Steps Inside Each Model's Closure**:
+   - Inside each model's deployment closure, define steps for each version.
+
+#### 5. **Initialize and Map Version Stages**:
+   - **For `model_a`**:
+     - `def versionStages = [:]`
+     - Versions found: `1.0`, `1.1`.
+     - Add stages:
+       - `versionStages["model_a - Version 1.0"] = { ... }`
+       - `versionStages["model_a - Version 1.1"] = { ... }`
+   - **For `model_b`**:
+     - `def versionStages = [:]`
+     - Versions found: `2.0`, `2.1`.
+     - Add stages:
+       - `versionStages["model_b - Version 2.0"] = { ... }`
+       - `versionStages["model_b - Version 2.1"] = { ... }`
+
+#### 6. **Parallel Execution of Version Stages Within Each Model**:
+   - Each version deployment of `model_a` and `model_b` is set to run in parallel.
+   - For `model_a`:
+     - `parallel versionStages` will concurrently execute the jobs for versions `1.0` and `1.1`.
+   - For `model_b`:
+     - Similarly, `parallel versionStages` will concurrently execute the jobs for versions `2.0` and `2.1`.
+
+#### 7. **Parallel Execution of All Model Deployment Stages**:
+   - `parallel deployStages` will concurrently execute the deployment for `model_a` and `model_b`.
+   - This means that while `model_a` versions `1.0` and `1.1` are being deployed in parallel, `model_b` versions `2.0` and `2.1` are also deployed in parallel, but independently of `model_a`.
+
+### How Parallel Jobs Work:
+- **Jenkins Execution**:
+  - Jenkins manages the execution of these parallel stages using its executors. Each parallel task is assigned to an executor, which runs the task independently.
+- **Resource Utilization**:
+  - The parallel execution ensures optimal utilization of available Jenkins executors, reducing the total deployment time by running multiple tasks simultaneously.
+- **Task Scheduling**:
+  - Jenkins schedules these tasks based on the availability of executors. If there are not enough executors available, some tasks will wait in the queue.
+
+### Conclusion:
+In this setup, the script effectively manages multiple deployments by allowing different versions of a model to deploy concurrently and independently of other models. This approach maximizes the efficiency of the deployment process, especially beneficial in environments with multiple models and frequent updates.
