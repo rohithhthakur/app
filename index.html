@@ -1,1 +1,34 @@
-lxx
+### Summary Document: Addressing Case Sensitivity Issues in Rule Guard
+
+#### Background
+We encountered an issue with Rule Guard, a rules engine written in Python, during schema validation checks. Our dataset registered in OneLake has columns in uppercase, while the process generating the input file converts column names to lowercase. This case discrepancy led to schema validation failures due to the case-sensitive nature of Rule Guard.
+
+#### Problem Statement
+Rule Guard's schema check fails when column names in the generated file do not match the case of the registered columns in OneLake. Specifically, when columns in the generated file are in lowercase but should match the uppercase columns in the registered dataset, Rule Guard throws an error, preventing successful validation.
+
+#### Decision
+After considering multiple options to address this issue, our team has decided that the schema in the exchange registration (OneLake) should be the source of truth. Therefore, the solution is to update our processes to avoid converting column names to lowercase. This approach ensures that the generated files have column names that exactly match the case of the registered columns in OneLake, allowing Rule Guard to perform accurate validations.
+
+#### Action Plan
+1. **Update Process Logic**:
+   - Identify all instances in our process logic where `st.lower()` or any similar case conversion is applied to column names.
+   - Remove or modify these instances to ensure that column names retain their original case as specified in the registered dataset.
+
+2. **Testing and Validation**:
+   - Conduct thorough testing to verify that the updated processes generate files with column names in the correct case.
+   - Perform schema validation checks using Rule Guard to ensure that columns in the generated files match the registered columns in OneLake.
+
+3. **Documentation and Training**:
+   - Update relevant documentation to reflect the new process requirements.
+   - Provide training to the team to ensure that all members understand the importance of maintaining the case of column names as per the registered schema.
+
+4. **Monitoring and Maintenance**:
+   - Implement monitoring to detect any deviations in column case during file generation.
+   - Schedule periodic reviews of the process to ensure ongoing compliance with the updated schema requirements.
+
+#### Benefits
+- **Accurate Schema Validation**: Ensuring column names match the registered schema's case will allow Rule Guard to perform accurate and reliable validations.
+- **Consistency**: Maintaining the case of column names as per the source of truth (OneLake registration) enhances consistency across our data processes.
+- **Reduced Errors**: This approach minimizes the risk of validation errors due to case mismatches, improving overall process efficiency.
+
+By implementing this solution, we align our processes with the source of truth schema, enabling exact validations and maintaining data integrity across our systems.
