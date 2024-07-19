@@ -1,1 +1,57 @@
-xx
+import re
+
+def execute_dag(dag_id, cell, version, execution_space, execution_env, execute_region):
+    # Check if dag_config has 'run_types'
+    if 'run_types' in dag_config:
+        # Determine if there is a specific run type set and it's not the default
+        if 'run_type' in cell and cell['run_type'] != 'default':
+            print(f"Handling run type specific input parameter defaulting for {cell['run_type']}")
+            run_type = dag_config['run_types'][cell['run_type']]
+
+            # Iterate over inputs in the specified run type
+            for input_name, value in run_type['inputs'].items():
+                if input_name not in cell:
+                    # Check if the value is an S3 path
+                    if "s3://" in value:
+                        # Regex to specifically find 'auto-crm-prod' bucket
+                        s3_pattern = r's3://(auto-crm-prod)(/.+)'
+                        match = re.search(s3_pattern, value)
+
+                        # Handling the case where the S3 bucket is found in the URL
+                        if match:
+                            current_bucket = match.group(1)
+                            new_bucket = current_bucket
+                            # Check for region and modify the bucket name accordingly
+                            if execute_region == "us-west-2":
+                                new_bucket = f"{current_bucket}-west2"
+                            elif execute_region == "eu-central-1":
+                                new_bucket = f"{current_bucket}-eu1"  # Example for another region
+                            else:
+                                print(f"No specific bucket modifications for region: {execute_region}")
+
+                            new_value = value.replace(current_bucket, new_bucket)
+                            run_type['inputs'][input_name] = new_value  # Update the dictionary
+                            print(f"Updated {input_name} to {new_value}")
+                        else:
+                            print(f"No 'auto-crm-prod' bucket found in the value for {input_name}")
+                    else:
+                        print(f"The value for {input_name} is not an S3 path.")
+                    
+                    # Update the cell with the (potentially modified) default value
+                    cell[input_name] = run_type['inputs'][input_name]
+                    print(f"Input parameter '{input_name}' not specified, using default input {cell[input_name]}")
+        else:
+            print("Using 'default' for Input Parameter Defaulting")
+            # Default configuration if no specific run_type is specified
+            run_type = dag_config['run_types']['default']
+            for input_name in run_type['inputs']:
+                if input_name not in cell:
+                    cell[input_name] = run_type['inputs'][input_name]
+                    print(f"Input parameter '{input_name}' not specified, using default input {cell[input_name]}")
+
+    else:
+        print("Error: No run types configuration found in dag_config.")
+        # Possible error handling or raise an exception could be placed here
+
+    # Validate the parameters after all modifications
+    validate_params(dag_id, cell, version)
