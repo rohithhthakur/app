@@ -1,1 +1,52 @@
-xxxxx
+# Step 1: Read the Parquet files from S3
+file1_path = "s3://your-bucket/path/to/file1.parquet"
+file2_path = "s3://your-bucket/path/to/file2.parquet"
+
+df1 = spark.read.parquet(file1_path)
+df2 = spark.read.parquet(file2_path)
+
+# Step 2: Print the columns of each DataFrame
+columns_file1 = df1.columns
+columns_file2 = df2.columns
+
+print("Columns in file 1:")
+display(columns_file1)
+
+print("Columns in file 2:")
+display(columns_file2)
+
+# Step 3: Identify and print common columns
+common_columns = list(set(columns_file1).intersection(set(columns_file2)))
+print("Common columns:")
+display(common_columns)
+
+# Step 4: Identify and print extra columns in each file
+extra_columns_file1 = list(set(columns_file1) - set(columns_file2))
+extra_columns_file2 = list(set(columns_file2) - set(columns_file1))
+
+print("Extra columns in file 1:")
+display(extra_columns_file1)
+
+print("Extra columns in file 2:")
+display(extra_columns_file2)
+
+# Additional Step: Check and print schema differences for common columns
+def print_schema_differences(df1, df2, common_columns):
+    schema1 = df1.schema
+    schema2 = df2.schema
+    
+    differences = []
+    for col in common_columns:
+        type1 = schema1[col].dataType
+        type2 = schema2[col].dataType
+        if type1 != type2:
+            differences.append((col, type1, type2))
+    
+    if differences:
+        print("Differences in common column schemas:")
+        for diff in differences:
+            print(f"Column: {diff[0]} - File 1 Type: {diff[1]}, File 2 Type: {diff[2]}")
+    else:
+        print("No differences found in common column schemas.")
+
+print_schema_differences(df1, df2, common_columns)
