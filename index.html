@@ -1,1 +1,106 @@
-xxx
+import sys
+import os
+import pandas as pd
+from file_util import FileUtil
+
+# Function which can read both parquets and csvs based on file extension
+def read_data(path, usecols=None):
+    extension = path.split(".")[-1].lower()
+
+    if "csv" in extension:
+        return pd.read_csv(path, usecols=usecols)
+    elif "parquet" in extension:
+        return pd.read_parquet(path, columns=usecols)
+    elif "xlsx" in extension:
+        return pd.read_excel(path, engine='openpyxl')
+    else:
+        print(f"Unsupported file extension {extension} in path {path}.")
+        sys.exit()
+
+class UnitOverlay:
+    """
+    UnitOverlay class supporting the new CECL methodology for applying units overlays to the new summary model output file
+    """
+    def __init__(self, rules_file, model_file, output_format, new_cona=False):
+        """
+        Constructor for the UnitOverlay object
+        Args:
+            rules_file (string): file path to the rules file containing the rules application for overlays
+            model_file (string): file path to the new summary model output file where the overlay will be applied on
+            min_horizon (datetime): minimum forecast horizon date
+            output_format (string): format (parquet or csv) for output files
+            group (boolean): true if the input new_summary file has a group column and false otherwise
+        """
+        self.rules_file = rules_file
+        self.model_file = model_file
+        self.output_format = output_format
+        self.new_cona = new_cona
+        self.group = False
+
+    def generate_allm_avf_cona(self):
+        """
+        Generates a CONA file based on the final new summary file after overlays have been applied.
+        Returns:
+            new_df(DataFrame): a pandas dataframe representing the CONA file derived from the new summary file with overlays applied.
+        """
+        print("Generating CONA file...")
+        allm_avf_cona = self.df.copy(deep=True)
+
+        if self.new_cona:
+            # Add the logic to remove specific columns from model_file
+            columns_to_remove = ['col1', 'col2', 'col3']  # Replace with the actual columns you need to remove
+            allm_avf_cona = allm_avf_cona.drop(columns=columns_to_remove, errors='ignore')
+        else:
+            allm_avf_cona["nonbk_unit"] = allm_avf_cona["pd_dpd"] + allm_avf_cona["pd_repo"] + allm_avf_cona["pd_od"] + allm_avf_cona["pd_totald"] + \
+                                          allm_avf_cona["pd_skip"] + allm_avf_cona["pd_dpd"] + allm_avf_cona["pd_bk"] + allm_avf_cona["pd_dpd"] + \
+                                          allm_avf_cona["pd_totald"] + allm_avf_cona["gaco_totald"] + allm_avf_cona["gaco_skip"]
+
+            allm_avf_cona["nonrepo_unit"] = allm_avf_cona["pd_dpd"] + allm_avf_cona["pd_bk"] + allm_avf_cona["pd_dpd"] + allm_avf_cona["pd_totald"] + \
+                                            allm_avf_cona["pd_skip"] + allm_avf_cona["pd_dpd"] + allm_avf_cona["pd_bk"] + allm_avf_cona["pd_dpd"] + \
+                                            allm_avf_cona["pd_totald"] + allm_avf_cona["gaco_totald"] + allm_avf_cona["gaco_skip"]
+
+            # Additional calculations...
+
+            rename_dict = {
+                'segment': 'seg',
+                'rcvr_month': 'monthend'
+            }
+            allm_avf_cona.rename(columns=rename_dict, inplace=True)
+            allm_avf_cona.fillna(0, inplace=True)
+
+            print("Groupby and Summing over cols...")
+            allm_cona_list_agg = ["seg", "segment4", "monthend", "lob"]
+            if self.group:
+                allm_cona_list_agg.append("group")
+
+            try:
+                allm_avf_cona = allm_avf_cona.groupby(allm_cona_list_agg).agg(
+                    bk_unit=("pd_bk", sum),
+                    nonbk_unit=("nonbk_unit", sum),
+                    repo_unit=("pd_repo", sum),
+                    nonrepo_unit=("nonrepo_unit", sum),
+                    total_unit=("total_unit", sum),
+                    bk_gd=("gaco_bk", sum),
+                    nonbk_gd=("nonbk_gd", sum),
+                    repo_gd=("gaco_repo", sum),
+                    nonrepo_gd=("nonrepo_gd", sum),
+                    total_gd=("total_gd", sum),
+                    bk_rcvr=("acct_rcvr_bk", sum),
+                    nonbk_rcvr=("nonbk_rcvr", sum),
+                    repo_rcvr=("acct_rcvr_repo", sum),
+                    nonrepo_rcvr=("nonrepo_rcvr", sum),
+                    total_rcvr=("total_rcvr", sum),
+                )
+            except Exception as e:
+                print(f"Groupby Agg Error: {e}")
+
+            allm_avf_cona["bk_net"] = allm_avf_cona["bk_gd"] - allm_avf_cona["bk_rcvr"]
+            allm_avf_cona["nonbk_net"] = allm_avf_cona["nonbk_gd"] - allm_avf_cona["nonbk_rcvr"]
+            allm_avf_cona["repo_net"] = allm_avf_cona["repo_gd"] - allm_avf_cona["repo_rcvr"]
+            allm_avf_cona["nonrepo_net"] = allm_avf_cona["nonrepo_gd"] - allm_avf_cona["nonrepo_rcvr"]
+            allm_avf_cona["total_net"] = allm_avf_cona["total_gd"] - allm_avf_cona["total_rcvr"]
+
+        print("Created CONA file")
+        allm_avf_cona.reset_index(inplace=True)
+        print(f"allm_avf_cona: {allm_avf_cona.head()}")
+        return allm_avf_cona
