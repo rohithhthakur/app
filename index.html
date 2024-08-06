@@ -1,1 +1,22 @@
-xxxx
+Here's a draft for your Slack message:
+
+---
+
+Hi Team,
+
+During our pre-prod event, we encountered some issues which resulted in tasks getting queued up. Here are the problems we identified:
+
+1. **Dagger Scheduler**: It wasn't coming up due to a missing environment variable for Redis.
+2. **Virtuoso Workers**: These were unhealthy because of misconfigured proxy variables in the worker Docker image.
+   - **Resolution**: We managed to bring up the workers healthily by adding the necessary proxy environment variables in the task definition.
+3. **Task Queues**: Tasks were getting queued up because the workers couldn’t connect to the Redis cluster due to missing security group rules on port 6379.
+   - **Todo**: We need to work with the SRE team to update the security group rules.
+
+Thank you, J and Nick, for your support in identifying and resolving the issues during Mock Trex.
+
+Next Steps:
+- Follow up with the Dagger team to schedule another mock dry run.
+- We still need to determine if we are going to stay on the West post-mock or fall back to the East.
+
+Thanks,
+[Your Name]
