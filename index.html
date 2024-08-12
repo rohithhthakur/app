@@ -1,1 +1,23 @@
-cxx
+#!/bin/bash
+
+USERNAME="<your_username>"
+PASSWORD="<your_password>"
+ANSIBLE_HOST="<your_ansible_host>"
+
+# Fetch job IDs (you can modify the filter as needed)
+JOB_IDS=$(curl -s -k -u $USERNAME:$PASSWORD \
+    -X GET "https://$ANSIBLE_HOST/api/v2/jobs/?page_size=200" \
+    | jq '.results[].id')
+
+# Convert job IDs into an array
+JOB_IDS_ARRAY=($JOB_IDS)
+
+# Delete jobs in batches of 200
+BATCH_SIZE=200
+for ((i=0; i<${#JOB_IDS_ARRAY[@]}; i+=BATCH_SIZE)); do
+    for ((j=i; j<i+BATCH_SIZE && j<${#JOB_IDS_ARRAY[@]}; j++)); do
+        echo "Deleting job ID: ${JOB_IDS_ARRAY[$j]}"
+        curl -k -u $USERNAME:$PASSWORD \
+            -X DELETE "https://$ANSIBLE_HOST/api/v2/jobs/${JOB_IDS_ARRAY[$j]}/"
+    done
+done
