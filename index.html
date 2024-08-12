@@ -1,23 +1,41 @@
 #!/bin/bash
 
-USERNAME="<your_username>"
-PASSWORD="<your_password>"
-ANSIBLE_HOST="<your_ansible_host>"
+# Credentials
+USERNAME="your_username"
+PASSWORD="your_password"
+TOWER_INSTANCE="your_ansible_tower_instance"
 
-# Fetch job IDs (you can modify the filter as needed)
-JOB_IDS=$(curl -s -k -u $USERNAME:$PASSWORD \
-    -X GET "https://$ANSIBLE_HOST/api/v2/jobs/?page_size=200" \
-    | jq '.results[].id')
+# Initial API endpoint
+API_ENDPOINT="https://$TOWER_INSTANCE/api/v2/jobs/?status=successful&page_size=100"
 
-# Convert job IDs into an array
-JOB_IDS_ARRAY=($JOB_IDS)
+# Loop through each page of the API response
+while [ -n "$API_ENDPOINT" ] && [ "$API_ENDPOINT" != "null" ]
+do
+    echo "Fetching jobs from $API_ENDPOINT..."
+    # Fetch the current page
+    RESPONSE=$(curl -s -u "$USERNAME:$PASSWORD" "$API_ENDPOINT")
 
-# Delete jobs in batches of 200
-BATCH_SIZE=200
-for ((i=0; i<${#JOB_IDS_ARRAY[@]}; i+=BATCH_SIZE)); do
-    for ((j=i; j<i+BATCH_SIZE && j<${#JOB_IDS_ARRAY[@]}; j++)); do
-        echo "Deleting job ID: ${JOB_IDS_ARRAY[$j]}"
-        curl -k -u $USERNAME:$PASSWORD \
-            -X DELETE "https://$ANSIBLE_HOST/api/v2/jobs/${JOB_IDS_ARRAY[$j]}/"
+    # Print the first 100 characters of response for debugging
+    echo "API Response (preview): ${RESPONSE:0:100}"
+
+    # Extract job IDs
+    jobs=$(echo $RESPONSE | jq '.results[] | .id')
+
+    # Check if there are no jobs
+    if [ -z "$jobs" ]; then
+        echo "No more jobs to process. Exiting."
+        break
+    fi
+
+    # Delete each job
+    for job_id in $jobs; do
+        echo "Deleting job $job_id..."
+        curl -s -u "$USERNAME:$PASSWORD" -X DELETE "https://$TOWER_INSTANCE/api/v2/jobs/$job_id/"
     done
+
+    # Get the next page URL from the 'next' field in the JSON response
+    API_ENDPOINT=$(echo $RESPONSE | jq -r '.next')
+
+    # Debug output for next URL
+    echo "Next API endpoint: $API_ENDPOINT"
 done
