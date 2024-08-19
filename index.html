@@ -1,26 +1,22 @@
-In Amazon ECS, the **task role** and the **execution role** serve distinct purposes, and their interaction can sometimes lead to unexpected issues when they are configured to be the same.
+import boto3
 
-### Understanding Task Roles and Execution Roles
-1. **Task Role**: This is the IAM role that your application code uses to make API requests to AWS services that are authorized for the role.
-2. **Execution Role**: This is the IAM role that the ECS agent uses to make AWS API calls on your behalf. The execution role typically needs permissions to interact with container registry for pulling images and with CloudWatch for logs.
+# Initialize a session using Amazon CloudWatch
+client = boto3.client('logs')
 
-### Why Removing Execution Role Works
-When you remove the execution role and the task still works fine and logs to CloudWatch, it suggests that the task role alone has sufficient permissions for both the application needs and the ECS agent's needs (like pulling images and sending logs to CloudWatch). This is not typical but can occur if the task role is overly permissive.
+# Define your log group and log stream
+log_group_name = 'your-log-group-name'
+log_stream_name = 'your-log-stream-name'
 
-### Issue with Execution Role
-When the execution role is attached and it's the same as the task role, you encounter an attribute error, which is fixed by setting `ECS_ENABLE_EXECUTION_ROLE_OVERRIDE` to `true`. This setting allows ECS to ignore the execution role at the ECS agent level and solely use the task role for all permissions. Here are potential reasons why this might cause issues:
-- **Permission Overlap and Conflicts**: There could be a misconfiguration or a permissions overlap causing AWS to incorrectly enforce permissions.
-- **Incorrect IAM Policies**: The role might not be correctly configured for simultaneous use as both task and execution roles, despite appearing to have sufficient permissions.
-- **Credentials Caching**: ECS agents might cache credentials differently when the execution role is explicitly specified, leading to errors if the configuration changes.
+# Fetch the logs
+response = client.get_log_events(
+    logGroupName=log_group_name,
+    logStreamName=log_stream_name,
+    startFromHead=True  # Start from the beginning of the log stream
+)
 
-### Credential Endpoint Error
-After the attribute is set to override, if the app container throws a "credentials endpoint error," it typically means that:
-- The ECS agent is unable to fetch the necessary credentials for the task. This can happen if the agent configuration or IAM roles/policies do not align perfectly.
-- The ECS container instance needs appropriate permissions to access the credentials endpoint, which might not be correctly set up due to the override.
+# Write logs to a text file
+with open('log_output.txt', 'w') as file:
+    for event in response['events']:
+        file.write(event['message'] + '\n')
 
-### Recommendation
-- **Separate Roles**: Ideally, keep the task role and the execution role separate to avoid such conflicts, ensuring each has only the permissions necessary for its functions.
-- **Review IAM Policies**: Double-check the policies attached to the role used. Ensure there are no restrictive policies interfering with role assumption by the ECS agent.
-- **Testing**: If possible, test with minimal permissions and gradually add necessary permissions to identify any specific triggers for these errors.
-
-By explaining these details to your team, you can clarify the importance of role separation in ECS and ensure that permissions are meticulously managed to avoid such complex issues.
+print("Logs have been written to log_output.txt")
