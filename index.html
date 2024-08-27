@@ -1,1 +1,35 @@
-xxx
+import boto3
+
+def fetch_and_save_logs(task_arn, log_group_name, output_filename):
+    # Create a session using the AWS SDK
+    session = boto3.Session()
+    ecs_client = session.client('ecs')
+    logs_client = session.client('logs')
+    
+    # Describe the ECS task to get details
+    response = ecs_client.describe_tasks(tasks=[task_arn])
+    task_details = response['tasks'][0]
+    container_instance_arn = task_details['containerInstanceArn']
+    
+    # Get the log stream name
+    log_stream_name = task_details['containers'][0]['logStreamName']
+    
+    # Fetch the log events from CloudWatch Logs
+    log_events = logs_client.get_log_events(
+        logGroupName=log_group_name,
+        logStreamName=log_stream_name
+    )
+    
+    # Write logs to a file
+    with open(output_filename, 'w') as file:
+        for event in log_events['events']:
+            file.write(event['message'] + '\n')
+    
+    return output_filename
+
+# Example usage
+task_arn = '{{ task_instance.xcom_pull(task_ids="your_ecs_task_operator_id") }}'
+log_group_name = "your_log_group_name"  # Set your log group name
+output_filename = "ecs_logs.txt"
+
+fetch_and_save_logs(task_arn, log_group_name, output_filename)
