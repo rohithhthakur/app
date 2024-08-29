@@ -1,1 +1,40 @@
-xxxx
+Sure! Here are the steps to associate a target group with a listener on your load balancer using the AWS Management Console:
+
+### Step 1: Navigate to the Load Balancers Section
+1. Sign in to the AWS Management Console.
+2. Go to the **EC2 Dashboard**.
+3. In the left-hand menu, scroll down to the **Load Balancing** section and click on **Load Balancers**.
+
+### Step 2: Select Your Load Balancer
+1. In the **Load Balancers** list, click on the name of the load balancer you want to configure.
+2. This will open the details for your selected load balancer.
+
+### Step 3: Configure the Listener
+1. In the load balancer details, click on the **Listeners** tab.
+2. If a listener on port 443 is already configured, click the **View/edit rules** link next to it. If not, click **Add listener** and set the following:
+   - **Protocol:** HTTPS
+   - **Port:** 443
+   - **Default action:** Forward to a target group
+
+### Step 4: Create or Select the Target Group
+1. If you don't have a target group configured for port 9443 yet, you'll need to create one:
+   - Click on **Create a new target group**.
+   - Set **Target type** to **Instance**.
+   - Set **Protocol** to **HTTPS**.
+   - Set **Port** to **9443**.
+   - Set up the **Health Check** (usually on the same port and protocol).
+   - Add your instances to the target group.
+   - Click **Create**.
+
+2. If you already have a target group:
+   - Simply select it from the list when configuring the listener.
+
+### Step 5: Associate the Target Group
+1. After selecting the target group, click **Save** or **Update** (depending on whether you are creating a new listener or editing an existing one).
+2. Confirm the settings to ensure the load balancer forwards traffic on port 443 to the target group on port 9443.
+
+### Step 6: Final Checks
+1. Ensure your security groups are correctly set up for both the load balancer and the instances.
+2. Test the configuration by accessing the load balancer's DNS name via HTTPS.
+
+That's it! Your load balancer should now direct traffic received on port 443 to the instances running on port 9443.
